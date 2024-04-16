@@ -33,5 +33,8 @@ def run_indefinitely():
 
 
 if __name__ == '__main__':
-    # run_indefinitely()
-    scrape_and_save()
+    # Default behavior is to run indefinitely.
+    run_indefinitely()
+
+    # For testing purposes.
+    # scrape_and_save()
