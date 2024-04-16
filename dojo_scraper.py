@@ -14,22 +14,22 @@ URL extensions
 """
 search_links = [
     # "73&attr_id=15",  # written_duel_official
-    "73",  # written_duel
-    "81",  # comic_duel
-    "49",  # anim_duel
-    "51",  # anim_duel_official
-    "82",  # comic_duel_official
+    # "73",  # written_duel
+    # "81",  # comic_duel
+    # "49",  # anim_duel
+    # "51",  # anim_duel_official
+    # "82",  # comic_duel_official
     "71",  # written_duelist
     "79",  # comic_duelist
     "47",  # anim_duelist
     "72",  # written_duelist_official
     "80",  # comic_duelist_official
     "48",  # anim_duelist_official
-    "61",  # faction_nw
-    "62",  # faction_sw
-    "68",  # faction_ne
-    "69",  # faction_se
-    "64"  # dojo_duels_general
+    # "61",  # faction_nw
+    # "62",  # faction_sw
+    # "68",  # faction_ne
+    # "69",  # faction_se
+    # "64"  # dojo_duels_general
 ]
 
 """
@@ -132,16 +132,71 @@ def find_num(txt):
 def write_link_info(forum,
                     soup,
                     official,
-                    i):
+                    forum_id):
     """
     Store forum of each page along with link info and base "official" check
     :param forum:
     :param soup:
     :param official:
-    :param i:
+    :param forum_id:
     :return:
     """
-    return [[forum, item, official, search_links[i]] for item in soup.findAll("tr", {"class": "view_forum_bod"})]
+    return [[forum, item, official, forum_id] for item in soup.findAll("tr", {"class": "view_forum_bod"})]
+
+
+def get_info_from_page(page):
+    pass
+
+
+def get_all_info_for_forum_id(forum_id: str) -> list:
+    # append link extension with base url
+    link = default_url + "f=" + forum_id
+    print(link)
+    # request page info
+    response = requests.get(link, headers=headers)
+    content = response.content
+    # convert page info to html info
+    soup = BeautifulSoup(content, 'html.parser')
+    result_links = []
+    try:
+        # get forum page name
+        forum = soup.find("div", {"id": "viewforum_page_header"}).find(
+            "a").get_text()
+        # for pages such as "Animation Duel Results" and "Comic Duelist Roster"
+        official = True if ("results" in forum.lower()
+                            or "roster" in forum.lower()) else False
+        # Store forum of each page along with link info and base "official" check
+        result_links = write_link_info(forum, soup, official, forum_id)
+        # Get total number of pages
+        page_num = find_num(
+            soup.find('div', {"class": "view_forum_pag"}).prettify().split("</strong>")[1])
+        print("get_pagenum:", page_num)
+
+        # loop through each page
+        for k in range(1, page_num):
+            # request info using previous link and "&start=" + 25 * current page
+            response = requests.get(link + "&start=" +
+                                    str(25 * k),
+                                    headers=headers)
+            content = response.content
+            # get soup
+            soup = BeautifulSoup(content, "html.parser")
+            link_info = write_link_info(forum, soup, official, forum_id)
+
+            # if search_links[i] == "51":
+            #     print(k, "search")
+
+            # write info to table
+            result_links.extend(link_info)
+
+        # if search_links[i] == "51":
+        #     print(len(result_links))
+
+        print(f"{forum} (Page {forum_id}) Complete")
+    except:
+        print(f"{forum} (Page {forum_id}) Failed")
+
+    return result_links
 
 
 def get_link_info() -> list:
@@ -149,55 +204,10 @@ def get_link_info() -> list:
     Get all link info
     :return:
     """
-    result_links = []
-    for i in range(len(search_links)):
-        # append link extension with base url
-        link = default_url+"f="+search_links[i]
-        print(link)
-        # request page info
-        response = requests.get(link, headers=headers)
-        content = response.content
-        # convert page info to html info
-        soup = BeautifulSoup(content, 'html.parser')
-        try:
-            # get forum page name
-            forum = soup.find("div", {"id": "viewforum_page_header"}).find(
-                "a").get_text()
-            # for pages such as "Animation Duel Results" and "Comic Duelist Roster"
-            official = True if ("results" in forum.lower()
-                                or "roster" in forum.lower()) else False
-            # Store forum of each page along with link info and base "official" check
-            result_links = [*result_links, *
-                            write_link_info(forum, soup, official, i)]
-            # Get total number of pages
-            page_num = find_num(
-                soup.find('div', {"class": "view_forum_pag"}).prettify().split("</strong>")[1])
-            print("get_pagenum:", page_num)
-
-            # loop through each page
-            for k in range(1, page_num):
-                # request info using previous link and "&start=" + 25 * current page
-                response = requests.get(link + "&start=" +
-                                        str(25 * k),
-                                        headers=headers)
-                content = response.content
-                # get soup
-                soup = BeautifulSoup(content, "html.parser")
-                link_info = write_link_info(forum, soup, official, i)
-
-                # if search_links[i] == "51":
-                #     print(k, "search")
-
-                # write info to table
-                result_links = [*result_links, *link_info]
-
-            # if search_links[i] == "51":
-            #     print(len(result_links))
-
-            print(f"{forum} (Page {search_links[i]}) Complete")
-        except:
-            print(f"{forum} (Page {search_links[i]}) Failed")
-    return result_links
+    result = []
+    for forum_id in search_links:
+        result.extend(get_all_info_for_forum_id(forum_id))
+    return result
 
 
 bool_bin = {"True": 1, "False": 0}
