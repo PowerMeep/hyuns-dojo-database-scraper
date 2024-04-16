@@ -129,10 +129,10 @@ def find_num(txt):
     return [int(s) for s in txt.split() if s.isdigit()][0]
 
 
-def write_link_info(forum,
-                    soup,
-                    official,
-                    forum_id):
+def get_topic_info(forum,
+                   soup,
+                   official,
+                   forum_id):
     """
     Store forum of each page along with link info and base "official" check
     :param forum:
@@ -141,62 +141,64 @@ def write_link_info(forum,
     :param forum_id:
     :return:
     """
-    return [[forum, item, official, forum_id] for item in soup.findAll("tr", {"class": "view_forum_bod"})]
+    result = [[forum, item, official, forum_id] for item in soup.findAll("tr", {"class": "view_forum_bod"})]
+    print(f'Found {len(result)} topic links')
+    return result
 
 
-def get_info_from_page(page):
-    pass
+def get_all_topics_in_forum(forum_id: str) -> list:
+    # initialize to silence some warnings
+    forum_name = None
+    all_topics = []
 
-
-def get_all_info_for_forum_id(forum_id: str) -> list:
     # append link extension with base url
     link = default_url + "f=" + forum_id
     print(link)
-    # request page info
+
+    # request page info and parse it with soup
     response = requests.get(link, headers=headers)
-    content = response.content
-    # convert page info to html info
-    soup = BeautifulSoup(content, 'html.parser')
-    result_links = []
+    soup = BeautifulSoup(response.content, 'html.parser')
     try:
         # get forum page name
-        forum = soup.find("div", {"id": "viewforum_page_header"}).find(
+        forum_name = soup.find("div", {"id": "viewforum_page_header"}).find(
             "a").get_text()
-        # for pages such as "Animation Duel Results" and "Comic Duelist Roster"
-        official = True if ("results" in forum.lower()
-                            or "roster" in forum.lower()) else False
-        # Store forum of each page along with link info and base "official" check
-        result_links = write_link_info(forum, soup, official, forum_id)
-        # Get total number of pages
-        page_num = find_num(
-            soup.find('div', {"class": "view_forum_pag"}).prettify().split("</strong>")[1])
-        print("get_pagenum:", page_num)
 
-        # loop through each page
-        for k in range(1, page_num):
+        # for pages such as "Animation Duel Results" and "Comic Duelist Roster"
+        official = True if ("results" in forum_name.lower()
+                            or "roster" in forum_name.lower()) else False
+
+        # get the total number of pages of topics in this forum
+        total_num_pages = find_num(
+            soup.find('div', {"class": "view_forum_pag"}).prettify().split("</strong>")[1])
+        print("Total pages:", total_num_pages)
+
+        # store all the links on the first page
+        all_topics = get_topic_info(forum_name, soup, official, forum_id)
+
+        # get the topic data from the rest of the pages in this forum
+        for page_num in range(1, total_num_pages):
+            # each page in the forum list will have up to 25 topics in it.
             # request info using previous link and "&start=" + 25 * current page
             response = requests.get(link + "&start=" +
-                                    str(25 * k),
+                                    str(25 * page_num),
                                     headers=headers)
-            content = response.content
-            # get soup
-            soup = BeautifulSoup(content, "html.parser")
-            link_info = write_link_info(forum, soup, official, forum_id)
+            soup = BeautifulSoup(response.content, "html.parser")
+            topics_on_this_page = get_topic_info(forum_name, soup, official, forum_id)
 
-            # if search_links[i] == "51":
-            #     print(k, "search")
+            # if forum_id == "51":
+            #     print(page_num, "search")
 
-            # write info to table
-            result_links.extend(link_info)
+            # add the new topics to the list
+            all_topics.extend(topics_on_this_page)
 
         # if search_links[i] == "51":
         #     print(len(result_links))
 
-        print(f"{forum} (Page {forum_id}) Complete")
+        print(f"{forum_name} (Page {forum_id}) Complete")
     except:
-        print(f"{forum} (Page {forum_id}) Failed")
+        print(f"{forum_name} (Page {forum_id}) Failed")
 
-    return result_links
+    return all_topics
 
 
 def get_link_info() -> list:
@@ -206,7 +208,7 @@ def get_link_info() -> list:
     """
     result = []
     for forum_id in search_links:
-        result.extend(get_all_info_for_forum_id(forum_id))
+        result.extend(get_all_topics_in_forum(forum_id))
     return result
 
 
